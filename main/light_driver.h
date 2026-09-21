@@ -49,7 +49,7 @@ extern "C" {
 #ifdef CONFIG_APP_OUTPUT_GPIO
 #define LIGHT_OUTPUT_GPIO        CONFIG_APP_OUTPUT_GPIO
 #else
-#define LIGHT_OUTPUT_GPIO        1
+#define LIGHT_OUTPUT_GPIO        9
 #endif
 
 #ifdef CONFIG_APP_PWM_FREQUENCY_HZ
@@ -60,6 +60,9 @@ extern "C" {
 #define LIGHT_DEFAULT_ON         1
 #define LIGHT_DEFAULT_OFF        0
 #define LIGHT_DEFAULT_LEVEL      255
+
+/* Duration of the hardware PWM fade applied to every power/level change, in milliseconds. */
+#define LIGHT_FADE_TIME_MS       800
 
 /**
 * @brief Set light power (on/off).
@@ -74,6 +77,13 @@ void light_driver_set_power(bool power);
 * @param level PWM duty level in the 0-255 range
 */
 void light_driver_set_level(uint8_t level);
+
+/**
+* @brief Set the duration of the hardware PWM fade applied to subsequent power/level changes.
+*
+* @param fade_time_ms Fade duration in milliseconds
+*/
+void light_driver_set_fade_time_ms(uint32_t fade_time_ms);
 
 /**
 * @brief Initialize PWM output driver.

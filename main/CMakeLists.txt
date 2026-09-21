@@ -1,5 +1,5 @@
 idf_component_register(
     SRC_DIRS  "."
     INCLUDE_DIRS "."
-    PRIV_REQUIRES nvs_flash esp_driver_uart esp_driver_ledc ieee802154
+    PRIV_REQUIRES nvs_flash esp_driver_uart esp_driver_ledc ieee802154 app_update esp_timer
 )

@@ -1,17 +1,17 @@
 | Supported Targets | ESP32-C6 |
 | ----------------- | -------- |
 
-# Zigbee PWM Output (Dimmable)
+# Zigbee PWM Fan Controller
 
-ESP32-C6 Zigbee end device that exposes a **dimmable light** entity in Home Assistant via Zigbee2MQTT.
-The brightness slider (0–255) is mapped to a PWM signal on **GPIO1**, which you can use to drive a fan controller, dimmer, or any PWM-controlled load.
+ESP32-C6 Zigbee end device that exposes a **fan** entity with percentage speed control in Home Assistant via Zigbee2MQTT.
+Speed (0–100%) is mapped to a PWM signal on **GPIO9**, which you can use to drive a fan, dimmer, or any PWM-controlled load.
 
 ## How it works
 
-- Advertises as a Zigbee HA Dimmable Light (On/Off + Level Control clusters, no Color Control).
-- Zigbee2MQTT exposes `state` and `brightness` — no color or effect clutter.
-- `brightness` (0–254) sets the LEDC PWM duty cycle on `GPIO1` at 5 kHz, 8-bit resolution.
-- `state` off drives duty to 0 regardless of brightness level.
+- Uses Zigbee's standard On/Off + Level Control clusters (endpoint 10) — the same pair used for dimmable lights, since Zigbee's dedicated Fan Control cluster only supports discrete Low/Medium/High presets, not a percentage.
+- A Zigbee2MQTT external converter ([`z2m/c6-pwm-fan.mjs`](z2m/c6-pwm-fan.mjs)) maps that Level Control value to a `fan` entity with a `speed` percentage instead of `brightness` — see [`docs/zigbee2mqtt-fan-converter.md`](docs/zigbee2mqtt-fan-converter.md) for setup.
+- `speed` (0–254 on the wire, 0–100% in Home Assistant) sets the LEDC PWM duty cycle on `GPIO9` at 5 kHz, 8-bit resolution.
+- `state` off drives duty to 0 regardless of the speed level.
 
 ## Hardware Required
 
@@ -23,7 +23,7 @@ The brightness slider (0–255) is mapped to a PWM signal on **GPIO1**, which yo
 
 | Signal | GPIO |
 |--------|------|
-| PWM output | **GPIO1** |
+| PWM output | **GPIO9** |
 
 To change the pin or PWM frequency, edit `LIGHT_OUTPUT_GPIO` and `LIGHT_PWM_FREQUENCY_HZ` in `main/light_driver.h`.
 
@@ -33,7 +33,11 @@ To change the pin or PWM frequency, edit `LIGHT_OUTPUT_GPIO` and `LIGHT_PWM_FREQ
 idf.py set-target esp32c6
 ```
 
-* If your board uses 4 MB flash (common on C6 SuperMini), verify `Serial flasher config -> Flash size` in `idf.py menuconfig`.
+* This board uses 4 MB flash — confirmed via `esptool flash_id` against the physical chip (ESP32-C6FH4). The partition table (two ~1.9 MB OTA app slots) is sized for that.
+
+## Firmware Stack
+
+Built on `espressif/esp-zigbee-lib` 2.x (Espressif's proprietary Zigbee stack, not the legacy ZBOSS-based 1.x line — see `main/idf_component.yml`). ESP-IDF stays pinned at v5.5.4, which is the version this Zigbee SDK release is actually tested against upstream; there's no need or documented support for a newer ESP-IDF major version here.
 
 ## Build and Flash
 
@@ -45,20 +49,25 @@ idf.py -p COMx erase-flash
 idf.py -p COMx flash monitor
 ```
 
+## OTA Updates
+
+The device advertises a Zigbee OTA Upgrade client, so once this build is on the device, future firmware updates can be pushed wirelessly through Zigbee2MQTT — no USB required. See [`docs/ota-updates.md`](docs/ota-updates.md) for how to build and publish an update.
+
+**One-time exception:** this firmware changes the partition table (single factory slot → two OTA slots), which cannot itself be applied over the air. You must flash this version once via USB (`idf.py -p COMx erase-flash` then `flash`) before OTA works.
+
 ## Example Serial Output
 
 ```
-I (548) ESP_ZB_ON_OFF_LIGHT: Initialize Zigbee stack
-I (568) ESP_ZB_ON_OFF_LIGHT: Deferred driver initialization successful
-I (568) ESP_ZB_ON_OFF_LIGHT: Device started up in factory-reset mode
-I (578) ESP_ZB_ON_OFF_LIGHT: Start network steering
-I (3558) ESP_ZB_ON_OFF_LIGHT: Joined network successfully (Extended PAN ID: ..., Channel:13)
-I (10238) ESP_ZB_ON_OFF_LIGHT: Light sets to On
-I (10238) ESP_ZB_ON_OFF_LIGHT: Light level sets to 128
+I (548) ESP_ZB_PWM_FAN: Initialize Zigbee stack
+I (568) ESP_ZB_PWM_FAN: Deferred driver initialization successful
+I (568) ESP_ZB_PWM_FAN: Device started up in factory-reset mode
+I (3558) ESP_ZB_PWM_FAN: Joined network successfully: PAN ID(0x1a62, EXT: 0x...), Channel(13), Short Address(0x0000)
+I (10238) ESP_ZB_PWM_FAN: Fan sets to On
+I (10238) ESP_ZB_PWM_FAN: Fan speed sets to 128/254
 ```
 
 ## Troubleshooting
 
 - If the device does not join, erase flash first and retry pairing mode.
-- If Home Assistant still shows color/effect after flashing, remove and re-interview the device in Zigbee2MQTT.
+- If Home Assistant doesn't show a fan entity, confirm the Zigbee2MQTT external converter is installed and enabled — see [`docs/zigbee2mqtt-fan-converter.md`](docs/zigbee2mqtt-fan-converter.md) — and re-interview the device.
 - To change the output GPIO or PWM frequency, edit `LIGHT_OUTPUT_GPIO` / `LIGHT_PWM_FREQUENCY_HZ` in `main/light_driver.h` and reflash.

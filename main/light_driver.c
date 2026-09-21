@@ -41,12 +41,17 @@
 
 static bool s_power;
 static uint8_t s_level;
+static uint32_t s_fade_time_ms = LIGHT_FADE_TIME_MS;
 
 static void light_driver_apply_output(void)
 {
     const uint32_t duty = s_power ? s_level : 0;
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty));
-    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
+    ESP_ERROR_CHECK(ledc_set_fade_time_and_start(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty, s_fade_time_ms, LEDC_FADE_NO_WAIT));
+}
+
+void light_driver_set_fade_time_ms(uint32_t fade_time_ms)
+{
+    s_fade_time_ms = fade_time_ms;
 }
 
 void light_driver_set_power(bool power)
@@ -82,6 +87,7 @@ void light_driver_init(bool power, uint8_t level)
 
     ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+    ESP_ERROR_CHECK(ledc_fade_func_install(0));
 
     s_level = level;
     s_power = power;
